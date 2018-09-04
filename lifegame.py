@@ -6,50 +6,56 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QGraphicsView, QGraphicsScen
                              QGridLayout, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QPushButton)
 
-SQUARE_WIDTH = 100
-SQUARE_HEIGHT = 100
-SQUARE_PIXEL = 20
+# セルの個数
+CELL_HORIZONTAL = 50
+CELL_VERTICAL = 50
+# セルのサイズ
+CELL_SIZE = 20
+# オート実行時のスピード(ms)
+AUTO_SPEED = 100
+# 世代の最大値
+MAX_GENE = 1000
 
 class LifeGame(QGraphicsItem):
-    def __init__(self, width=SQUARE_WIDTH, height=SQUARE_HEIGHT, size=SQUARE_PIXEL):
+    def __init__(self, cell_horiz, cell_vert, size):
         super(LifeGame, self).__init__()
-        self.width = width
-        self.height = height
-        self.max_gene = 1000
-        self.gene = 0
+        self.cell_horiz = cell_horiz
+        self.cell_vert = cell_vert
         self.size = size
-        self.NH = self.height//size 
-        self.NW = self.width//size
-        self.board = []
+        self.width = cell_horiz * size
+        self.height = cell_vert * size
+        self.gene = 0
+        self.max_gene = MAX_GENE
+        self.boards = []
 
-        for g in range(self.max_gene):
-            board_tmp = []
-            for y in range(self.NH + 2):
-                board_tmp.append([0] * (self.NW + 2))
-            self.board.append(board_tmp)
+        self.reset()
 
     def reset(self):
-        self.board = []
+        self.boards = []
+        # セル状態のリスト確保
         for g in range(self.max_gene):
-            board_tmp = []
-            for y in range(self.NH + 2):
-                board_tmp.append([0] * (self.NW + 2))
-            self.board.append(board_tmp)
+            board = []
+            # 上下1マスずつ余分に確保
+            for y in range(self.cell_vert + 2):
+                board.append([0] * (self.cell_horiz + 2))
+            self.boards.append(board)
 
         self.gene = 0
         self.update()
 
     def paint(self, painter, option, widget):
+        # セル境界線描画
         painter.setPen(QColor(220,220,220))
-        for y in range(0,self.NH+1):
+        for y in range(0,self.cell_vert+1):
             painter.drawLine(0, y*self.size, self.width, y*self.size)
-        for x in range(0,self.NW+1):
+        for x in range(0,self.cell_horiz+1):
             painter.drawLine(x*self.size, 0, x*self.size, self.height)
 
+        # セル生存時、黒で塗りつぶす
         painter.setBrush(Qt.black)
-        for y in range(self.NH+1):
-            for x in range(self.NW+1):
-                if self.board[self.gene][y+1][x+1] == 1:
+        for y in range(self.cell_vert+1):
+            for x in range(self.cell_horiz+1):
+                if self.boards[self.gene][y+1][x+1] == 1:
                     painter.drawRect(self.size*x, self.size*y, self.size, self.size)
 
     def do_prev(self):
@@ -57,40 +63,46 @@ class LifeGame(QGraphicsItem):
             return
         self.gene -= 1
         self.update()
+        return True
 
     def do_next(self):
+        # 現在の世代が最大世代であれば更新しない
         if self.gene == self.max_gene - 1:
             return False
-        flg = 0
-        for y in range(self.NH + 2):
-            for x in range(self.NW + 2):
-                if self.board[self.gene-1][y][x] != \
-                    self.board[self.gene][y][x]:
-                    flg = 1
+
+        change = False
+
+        # 全セルの状態が前の世代と変わらなければ更新しない
+        for y in range(self.cell_vert + 2):
+            for x in range(self.cell_horiz + 2):
+                if self.boards[self.gene-1][y][x] != self.boards[self.gene][y][x]:
+                    change = True
                     break
-            if flg == 1:
+            if change == True:
                 break
-        if flg == 0:
+
+        if change == False:
             return False
 
-        for y in range(1, self.NH+1):
-            for x in range(1, self.NW+1):
-                t = sum(self.board[self.gene][y-1][x-1:x+2]) + \
-                    self.board[self.gene][y][x-1] + self.board[self.gene][y][x+1] + \
-                    sum(self.board[self.gene][y+1][x-1:x+2])
-                if self.board[self.gene][y][x] == 0:
+        # 次世代の計算
+        for y in range(1, self.cell_vert+1):
+            for x in range(1, self.cell_horiz+1):
+                t = sum(self.boards[self.gene][y-1][x-1:x+2]) + \
+                    self.boards[self.gene][y][x-1] + self.boards[self.gene][y][x+1] + \
+                    sum(self.boards[self.gene][y+1][x-1:x+2])
+                if self.boards[self.gene][y][x] == 0:
                     if t == 3:
-                        self.board[self.gene+1][y][x] = 1
+                        self.boards[self.gene+1][y][x] = 1
                 else:
                     if t == 2 or t == 3:
-                        self.board[self.gene+1][y][x] = 1
+                        self.boards[self.gene+1][y][x] = 1
 
         self.gene += 1
         self.update()
         return True
 
     def boundingRect(self):
-        return QRectF(0,0,self.width,self.height)
+        return QRectF(0, 0, self.width,self.height)
 
     def mousePressEvent(self, event):
         if self.gene != 0:
@@ -101,21 +113,18 @@ class LifeGame(QGraphicsItem):
         super(LifeGame, self).mousePressEvent(event)
 
     def select(self, x, y):
-        self.board[self.gene][y][x] = 1 - self.board[self.gene][y][x]
+        self.boards[self.gene][y][x] = 1 - self.boards[self.gene][y][x]
 
 class MainWindow(QWidget):
-    def __init__(self, parent=None):
-        #set size
-        width = 2000
-        height = 2000
-        size = 20
+    def __init__(self, horizontal, vertical, size, auto_speed, parent=None):
         super(MainWindow, self).__init__(parent)
         self.graphicsView = QGraphicsView()
         scene = QGraphicsScene(self.graphicsView)
-        scene.setSceneRect(0, 0, width, height)
+        scene.setSceneRect(0, 0, horizontal*size, vertical*size)
         self.graphicsView.setScene(scene)
-        self.lifegame = LifeGame(width,height,size)
+        self.lifegame = LifeGame(horizontal, vertical, size)
         scene.addItem(self.lifegame)
+        self.auto_speed = auto_speed
 
         self.genelabel = QLabel("GENE: " + str(self.lifegame.gene))
         self.resetButton = QPushButton("&Reset")
@@ -167,7 +176,7 @@ class MainWindow(QWidget):
 
     def auto(self):
         self.timer = QTimer()
-        self.timer.setInterval(100)
+        self.timer.setInterval(self.auto_speed)
         self.timer.timeout.connect(self.timeout)
         self.timer.start()
 
@@ -184,7 +193,10 @@ class MainWindow(QWidget):
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
-    mainWindow = MainWindow()
 
+    mainWindow = MainWindow(
+        horizontal=CELL_HORIZONTAL, vertical=CELL_VERTICAL, size=CELL_SIZE, auto_speed=AUTO_SPEED
+    )
     mainWindow.show()
+
     sys.exit(app.exec_())
